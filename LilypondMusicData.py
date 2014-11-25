@@ -19,6 +19,7 @@ import copy, os, subprocess
 from LilypondMusicDataConstants import *
 from LilypondMusicDataTemplates import *
 from LilypondMusicDataMappings import *
+from decimal import *
 
 class NoteError(Exception):
     def __init__(self, message):
@@ -30,13 +31,13 @@ class Note:
     def __init__(self, pitch_class, pitch_modifier, octave, duration, syllable="", compare_by = "pitch"):
         self.pitch_class = pitch_class
         self.pitch_modifier = pitch_modifier
-        self.octave = octave
+        self.octave = Decimal(str(octave))
         self.duration = duration
         self.syllable = syllable
         self.compare_by = compare_by
     # calculate actual pitch including all modifiers as a floating point number
     def actual_pitch(self):
-        overall_pitch = (self.pitch_class + self.pitch_modifier)
+        overall_pitch = (self.pitch_class + self.pitch_modifier)        
         if self.octave != 0.0:
             overall_pitch = overall_pitch * self.octave
         return overall_pitch
@@ -136,12 +137,12 @@ class Note:
 class Rest(Note):
     def __init__(self, duration, compare_by = "pitch"):
         self.pitch_class = REST
-        self.pitch_modifier = 0.0
-        self.octave = 0.0
+        self.pitch_modifier = none
+        self.octave = Decimal("0.0")
         self.duration = duration
         self.compare_by = compare_by
         self.syllable = ""
-
+        
 class LilypondScore():
     def __init__(self, *args, **kwargs):
         self.title = kwargs.get('title', "some title")
@@ -189,14 +190,18 @@ class LilypondVoice():
         self.full_name = kwargs.get('full_name', "some voice name")
         self.short_name = kwargs.get('short_name', "svn")
         self.clef = kwargs.get('clef', "treble")
-        self.time_signature = kwargs.get('time_signature', [4,q])
+        self.time_signature = kwargs.get('time_signature', [Decimal('4.0'),q])
         self.notes = []
         self.contains_lyrics = kwargs.get('contains_lyrics', False)
+        self.total_duration = 0
         # this one should it make easier to parse out the lyrics afterwards ...
     def add_note(self, note):
+        self.total_duration += note.duration
         self.notes.append(note)
     def add_notes(self, notes):
-        self.notes.extend(notes)
+        # easier to calculate total duration that way
+        for note in notes:
+            self.add_note(note)
     def __str__(self):
         bar_size = self.time_signature[0] * self.time_signature[1]
         bar_count = 1
@@ -229,8 +234,32 @@ class LilypondVoice():
                 lyrics_bars += "% SPLIT POINT\n"
                 current_bar_remainder = bar_size - split_note.duration
                 bar_count += 1
-        inner_voice_string = lilypond_inner_voice_template.format(self.short_name, self.clef, self.time_signature[0], int(1.0 / self.time_signature[1]), bars)
+        inner_voice_string = lilypond_inner_voice_template.format(self.short_name, self.clef,int(self.time_signature[0]), int(Decimal("1.0") / self.time_signature[1]), bars)
         inner_lyrics_string = " "
         if self.contains_lyrics:
-            inner_lyrics_string = lilypond_inner_lyrics_template.format(self.short_name, self.clef, self.time_signature[0], int(1.0 / self.time_signature[1]), lyrics_bars)
+            inner_lyrics_string = lilypond_inner_lyrics_template.format(self.short_name, self.clef, int(self.time_signature[0]), int(Decimal("1.0") / self.time_signature[1]), lyrics_bars)
+            
         return inner_voice_string + "\n\n" + inner_lyrics_string
+
+# some utilities
+#class LilypondTools():
+#    # in case the voices are of different length, pad the shorter ones until thy match the longer ones.
+#    def match_end(self, voices):
+#        # using decimals for floating point arithmetic
+#        #set decimals precison ... 9 should be fine
+#        getcontext().prec = 9#
+
+        # find longest voice
+#        longest_voice = []
+#        for voice_ptr in range(0,len(voices)):
+#            if voices[voice_ptr].total_duration > longest_voice.total_duration:
+#                longest_voice = voices[voice_ptr]
+
+        # remove longest voice from list (temporariliy)
+#         voices.remove(longest_voice)    
+        
+
+        #for voice in voices:
+
+    # if the voice end on some crude measure, pad it to the next full bar
+#    def flush_end_to_bar(self, voice):
