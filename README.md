@@ -8,8 +8,8 @@ to describe and work with music.
 
 Forthermore, this library contains tools to parse this datatype to lilypond.
 
-The approach for the datatype is somewhat derived from the one you can find in HASKORE.
-but more focused on floating point arithmetic.
+The approach for the datatype is in some parts borrowed from the one you can find in HASKORE.
+It's based on fixed-point arithmetic, using python's 'Decimal' datatype.
 
 There's currently no support to represent accentuation, dynamics etc., though it should
 be fairly simple to add them in the future ...
