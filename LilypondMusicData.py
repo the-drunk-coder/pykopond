@@ -6,8 +6,8 @@
 #
 # Forthermore, this library contains tools to parse this datatype to lilypond.
 #
-# The approach for the datatype is somewhat derived from the one you can find in HASKORE.
-# but more focused on floating point arithmetic.
+# The approach for the datatype is in some part borrowed from the one you can find in HASKORE
+# but more focused on fixed-point decimal arithmetic, using python's 'Decimal' datatype.
 #
 # There's currently no support to represent accentuation, dynamics etc., though it should
 # be fairly simple to add them in the future ...
@@ -173,14 +173,17 @@ class LilypondScore():
         self.voices.append(voice)
     def add_voices(self, voices):
         self.voices.extend(voices)
-    def output_to_file(self):
-        #actually output to file
+    def output_ly(self):
         filename = (self.composer + "_-_" + self.title).replace(" ", "_") + ".ly"
         if not os.path.exists("ly"):
             os.makedirs("ly")
         score_file = open("ly/" + filename, 'w')
         score_file.write(str(self))
         score_file.close()
+    def output_pdf(self):
+        filename = (self.composer + "_-_" + self.title).replace(" ", "_") + ".ly"
+        self.output_ly()
+        #actually output to file
         if not os.path.exists("pdf"):
             os.makedirs("pdf")
         os.system("lilypond --output=pdf ly/" + filename)
@@ -194,6 +197,7 @@ class LilypondVoice():
         self.notes = []
         self.contains_lyrics = kwargs.get('contains_lyrics', False)
         self.total_duration = 0
+        self.bar_size = self.time_signature[0] * self.time_signature[1]
         # this one should it make easier to parse out the lyrics afterwards ...
     def add_note(self, note):
         self.total_duration += note.duration
@@ -203,9 +207,8 @@ class LilypondVoice():
         for note in notes:
             self.add_note(note)
     def __str__(self):
-        bar_size = self.time_signature[0] * self.time_signature[1]
         bar_count = 1
-        current_bar_remainder = bar_size
+        current_bar_remainder = self.bar_size
         bars = " "
         lyrics_bars = " "
         for note in self.notes:
@@ -218,7 +221,7 @@ class LilypondVoice():
             elif current_bar_remainder == note.duration:
                 bars += str(note) + " | %" + " " + str(bar_count) + "\n"
                 lyrics_bars += note.syllable + " | %" + " " + str(bar_count) + "\n"
-                current_bar_remainder = bar_size
+                current_bar_remainder = self.bar_size
                 bar_count += 1
             else:
                 # split note to two bars with binding ... we need two copies, as we don't want to alter the orignal data
@@ -226,13 +229,13 @@ class LilypondVoice():
                 original_note = copy.deepcopy(note)
                 split_note.duration = split_note.duration - current_bar_remainder
                 original_note.duration = current_bar_remainder
-                # print("SPLT NOTE: {0} : {1}".format(note.duration, split_note.duration))
+                print("SPLT NOTE: {0} : {1}".format(note.duration, split_note.duration))
                 bars += str(original_note) + " ~ | % " + " " + str(bar_count) + "\n"
                 bars += "% SPLIT POINT\n"
                 bars += str(split_note) + " "
                 lyrics_bars += note.syllable + " | %" + " " + str(bar_count) + "\n"
                 lyrics_bars += "% SPLIT POINT\n"
-                current_bar_remainder = bar_size - split_note.duration
+                current_bar_remainder = self.bar_size - split_note.duration
                 bar_count += 1
         inner_voice_string = lilypond_inner_voice_template.format(self.short_name, self.clef,int(self.time_signature[0]), int(Decimal("1.0") / self.time_signature[1]), bars)
         inner_lyrics_string = " "
@@ -242,24 +245,44 @@ class LilypondVoice():
         return inner_voice_string + "\n\n" + inner_lyrics_string
 
 # some utilities
-#class LilypondTools():
-#    # in case the voices are of different length, pad the shorter ones until thy match the longer ones.
-#    def match_end(self, voices):
-#        # using decimals for floating point arithmetic
-#        #set decimals precison ... 9 should be fine
-#        getcontext().prec = 9#
-
+class LilypondTools():
+    # in case the voices are of different length, pad the shorter ones until the match the longer ones.
+    def match_end(self, voices):
         # find longest voice
-#        longest_voice = []
-#        for voice_ptr in range(0,len(voices)):
-#            if voices[voice_ptr].total_duration > longest_voice.total_duration:
-#                longest_voice = voices[voice_ptr]
-
+        longest_voice = voices[0]
+        for voice_ptr in range(0,len(voices)):
+            if (voices[voice_ptr]).total_duration > longest_voice.total_duration:
+                longest_voice = voices[voice_ptr]
         # remove longest voice from list (temporariliy)
-#         voices.remove(longest_voice)    
+        voices.remove(longest_voice)
+        # match shorter voices to longer voice       
+        for voice in voices:
+            
+            self.flush_end_to_bar(voice)
+            
+            # calculate empty bars to be filled
+            voice_difference = (longest_voice.total_duration - voice.total_duration)
+            empty_bars = voice_difference / voice.bar_size
+
+            for i in range(0, int(empty_bars)):
+                voice.add_note(Rest(voice.bar_size))
+
+            total_remainder =  voice_difference % voice.bar_size 
+
+            if total_remainder != Decimal('0.0'):
+               voice.add_note(Rest(total_remainder))
+            
+        # finally, add voice to list of voices again
+        voices.append(longest_voice)
         
-
-        #for voice in voices:
-
+        
     # if the voice end on some crude measure, pad it to the next full bar
-#    def flush_end_to_bar(self, voice):
+    def flush_end_to_bar(self, voice):
+        bar_rest = voice.total_duration % voice.bar_size
+        print("TOTAL DUR: " + str(voice.total_duration))
+        print("BAR SIZE: " + str(voice.bar_size))
+        print("BAR REST:" + str(bar_rest))
+        print("DIFFERENCE: " + str(voice.bar_size - bar_rest))
+        if bar_rest != Decimal("0.0"):
+           voice.add_note(Rest(voice.bar_size - bar_rest))
+     
