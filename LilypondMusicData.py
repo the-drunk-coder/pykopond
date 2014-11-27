@@ -38,7 +38,7 @@ class Note:
     # calculate actual pitch including all modifiers as a floating point number
     def actual_pitch(self):
         overall_pitch = (self.pitch_class + self.pitch_modifier)        
-        if self.octave != 0.0:
+        if self.octave != Decimal('0.0'):
             overall_pitch = overall_pitch * self.octave
         return overall_pitch
     # note comparison functions
@@ -49,7 +49,13 @@ class Note:
             else:
                 #print("{0} : {1}".format(self, self.actual_pitch()))
                 #print("{0} : {1}".format(other, other.actual_pitch()))
-                return  self.actual_pitch() < other.actual_pitch()
+                if self.octave == other.octave:
+                    #print("COMPARE PITCH IN OCTAVE")
+                    return self.actual_pitch() < other.actual_pitch()
+                else:
+                    #print("COMPARE OCTAVE")
+                    return self.octave < other.octave
+                
         else:
             if(other.compare_by == "pitch"):
                 raise NoteError("Can't compare length by pitch !")
@@ -64,7 +70,10 @@ class Note:
             else:
                 #print("{0} : {1}".format(self, self.actual_pitch()))
                 #print("{0} : {1}".format(other, other.actual_pitch()))
-                return  self.actual_pitch() == other.actual_pitch()
+                if self.octave != other.octave:
+                    return False
+                else:
+                    return  self.actual_pitch() == other.actual_pitch()
         else:
             if(other.compare_by == "pitch"):
                 raise NoteError("Can't compare length by pitch !")
@@ -79,7 +88,10 @@ class Note:
             else:
                 #print("{0} : {1}".format(self, self.actual_pitch()))
                 #print("{0} : {1}".format(other, other.actual_pitch()))
-                return  self.actual_pitch() <= other.actual_pitch()
+                if self.octave < other.octave:
+                    return True
+                else:
+                    return  self.actual_pitch() <= other.actual_pitch()
         else:
             if(other.compare_by == "pitch"):
                 raise NoteError("Can't compare length by pitch !")
