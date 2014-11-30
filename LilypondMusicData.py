@@ -38,8 +38,6 @@ class Note:
     # calculate actual pitch including all modifiers as a floating point number
     def actual_pitch(self):
         overall_pitch = self.octave + (self.pitch_class + self.pitch_modifier)        
-        #if self.octave != Decimal('0.0'):
-        #    overall_pitch = overall_pitch * self.octave
         return overall_pitch
     # note comparison functions
     def __lt__(self, other):
@@ -47,62 +45,37 @@ class Note:
             if(other.compare_by == "duration"):
                 raise NoteError("Can't compare pitch to length !")
             else:
-                #print("{0} : {1}".format(self, self.actual_pitch()))
-                #print("{0} : {1}".format(other, other.actual_pitch()))
-                #if self.octave == other.octave:
-                    #print("COMPARE PITCH IN OCTAVE")
-                    return self.actual_pitch() < other.actual_pitch()
-                #else:
-                    #print("COMPARE OCTAVE")
-                 #   return self.octave < other.octave
-                
+                return self.actual_pitch() < other.actual_pitch()
         else:
             if(other.compare_by == "pitch"):
                 raise NoteError("Can't compare length by pitch !")
             else:
-                #print("{0} : {1}".format(self, self.actual_duration()))
-                #print("{0} : {1}".format(other, other.actual_duration()))
                 return self.duration < other.duration
     def __eq__(self, other):
         if(self.compare_by == "pitch"):
             if(other.compare_by == "duration"):
                 raise NoteError("Can't compare pitch to length !")
             else:
-                #print("{0} : {1}".format(self, self.actual_pitch()))
-                #print("{0} : {1}".format(other, other.actual_pitch()))
-                #if self.octave != other.octave:
-                 #   return False
-                #else:
-                    return self.actual_pitch() == other.actual_pitch()
+                return self.actual_pitch() == other.actual_pitch()
         else:
             if(other.compare_by == "pitch"):
                 raise NoteError("Can't compare length by pitch !")
             else:
-                #print("{0} : {1}".format(self, self.actual_duration()))
-                #print("{0} : {1}".format(other, other.actual_duration()))
                 return self.duration == other.duration
     def __le__(self, other):
         if(self.compare_by == "pitch"):
             if(other.compare_by == "duration"):
                 raise NoteError("Can't compare pitch to length !")
             else:
-                #print("{0} : {1}".format(self, self.actual_pitch()))
-                #print("{0} : {1}".format(other, other.actual_pitch()))
-                # if self.octave < other.octave:
-                #    return True
-                # else:
-                    return  self.actual_pitch() <= other.actual_pitch()
+                return  self.actual_pitch() <= other.actual_pitch()
         else:
             if(other.compare_by == "pitch"):
                 raise NoteError("Can't compare length by pitch !")
             else:
-                #print("{0} : {1}".format(self, self.actual_duration()))
-                #print("{0} : {1}".format(other, other.actual_duration()))
                 return self.duration <= other.duration
     # returns the note in it's lilypond representation
     def __str__(self):
         note_string = "";
-
         # divide odd note durations (like, quarter + sixteenth) to multiple, bounded notes
         if self.duration not in all_duration_values:
 
@@ -110,7 +83,7 @@ class Note:
             note_to_split = copy.deepcopy(self)
 
             while (note_to_split.duration > 0):
-                print("NOTE_TO_SPLIT: " + str(note_to_split.duration))
+                #print("NOTE_TO_SPLIT: " + str(note_to_split.duration))
                 largest_fitting_duration = 0
 
                 for i in range(0, len(unmodified_duration_values)):
@@ -118,7 +91,7 @@ class Note:
                     if margin <= 0:
                         # now we should have the nearest margin
                         largest_fitting_duration = unmodified_duration_values[i]
-                        print("FOUND: " + str(largest_fitting_duration))
+                        #print("FOUND: " + str(largest_fitting_duration))
                         break
 
                 compound_note = copy.deepcopy(note_to_split)
@@ -135,13 +108,15 @@ class Note:
             return note_string
 
         # Map pitch class
-
         note_string += pitch_class_mapping[self.pitch_class]
+        # Map pitch modifier        
         note_string += modifier_mapping[self.pitch_modifier]
 
+        # Map octave, unless it's a rest
         if self.pitch_class != 0:
             note_string += octave_mapping[self.octave]
 
+        # Map duration
         note_string += duration_mapping[self.duration]
 
         return note_string
