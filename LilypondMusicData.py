@@ -77,24 +77,19 @@ class Note:
                 return self.duration <= other.duration
     # returns the note in it's lilypond representation
     def __str__(self):
+        # assemble lilypond note string
         note_string = "";
-        # divide odd note durations (like, quarter + sixteenth) to multiple, bounded notes
-        
         # Map pitch class
         note_string += pitch_class_mapping[self.pitch_class]
         # Map pitch modifier        
         note_string += modifier_mapping[self.pitch_modifier]
-
         # Map octave, unless it's a rest
         if self.pitch_class != 0:
             note_string += octave_mapping[self.octave]
-
         # Map duration
         note_string += duration_mapping[self.duration]
-
         if self.connect:
-            note_string += " ~ "
-        
+            note_string += " ~ "        
         return note_string
 
 class Rest(Note):
@@ -191,8 +186,7 @@ class LilypondVoice():
                 compound_notes = []
                 note_to_split = copy.deepcopy(note)            
                 while (note_to_split.duration > 0):
-           
-                    print("NOTE_TO_SPLIT: " + str(note_to_split.duration))
+                    #print("NOTE_TO_SPLIT: " + str(note_to_split.duration))
                     largest_fitting_duration = 0
                     # find nearest fitting note
                     for i in range(0, len(unmodified_duration_values)):
@@ -261,7 +255,6 @@ class LilypondVoice():
         inner_lyrics_string = " "
         if self.contains_lyrics:
             inner_lyrics_string = lilypond_inner_lyrics_template.format(self.short_name, self.clef, int(self.time_signature[0]), int(Decimal("1.0") / self.time_signature[1]), lyrics_bars)
-            
         return inner_voice_string + "\n\n" + inner_lyrics_string
 
 # some utilities
@@ -289,12 +282,10 @@ class LilypondTools():
             for i in range(0, int(empty_bars)):
                 voice.add_note(Rest(voice.bar_size))
             total_remainder =  voice_difference % voice.bar_size 
-            if total_remainder != Decimal('0.0'):
+            if total_remainder > Decimal('0.0'):
                voice.add_note(Rest(total_remainder))
         # finally, add voice to list of voices again, keeping the original order
         voices.insert(longest_voice_index, longest_voice)
-    
-        
     # if the voice end on some crude measure, pad it to the next full bar
     def flush_end_to_bar(self, voice):
         bar_rest = voice.total_duration % voice.bar_size
