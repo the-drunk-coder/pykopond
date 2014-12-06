@@ -28,16 +28,18 @@ class NoteError(Exception):
         return repr(self.message)
 
 class Note:
-    def __init__(self, pitch_class, pitch_modifier, octave, duration, syllable="", compare_by = "pitch"):
+    def __init__(self, pitch_class, pitch_modifier, octave, duration, syllable="", compare_by = "pitch", **kwargs):
         self.pitch_class = pitch_class
         self.pitch_modifier = pitch_modifier
-        self.octave = Decimal(str(octave * 8))
+        self.octave = Decimal(str(octave))
         self.duration = duration
         self.syllable = syllable
         self.compare_by = compare_by
+        self.connect = kwargs.get("connect", False)
     # calculate actual pitch including all modifiers as a floating point number
     def actual_pitch(self):
-        overall_pitch = self.octave + (self.pitch_class + self.pitch_modifier)        
+        # multiply octave by 8 to achieve enough distance between octaves
+        overall_pitch = (self.octave * Decimal('8.0'))+ (self.pitch_class + self.pitch_modifier)        
         return overall_pitch
     # note comparison functions
     def __lt__(self, other):
@@ -67,7 +69,7 @@ class Note:
             if(other.compare_by == "duration"):
                 raise NoteError("Can't compare pitch to length !")
             else:
-                return  self.actual_pitch() <= other.actual_pitch()
+                return self.actual_pitch() <= other.actual_pitch()
         else:
             if(other.compare_by == "pitch"):
                 raise NoteError("Can't compare length by pitch !")
@@ -77,36 +79,7 @@ class Note:
     def __str__(self):
         note_string = "";
         # divide odd note durations (like, quarter + sixteenth) to multiple, bounded notes
-        if self.duration not in all_duration_values:
-
-            compound_notes = []
-            note_to_split = copy.deepcopy(self)
-
-            while (note_to_split.duration > 0):
-                #print("NOTE_TO_SPLIT: " + str(note_to_split.duration))
-                largest_fitting_duration = 0
-
-                for i in range(0, len(unmodified_duration_values)):
-                    margin = unmodified_duration_values[i] - note_to_split.duration
-                    if margin <= 0:
-                        # now we should have the nearest margin
-                        largest_fitting_duration = unmodified_duration_values[i]
-                        #print("FOUND: " + str(largest_fitting_duration))
-                        break
-
-                compound_note = copy.deepcopy(note_to_split)
-                compound_note.duration = largest_fitting_duration
-                note_to_split.duration -= largest_fitting_duration
-
-                compound_notes.append(compound_note)
-
-            for i in range(0, len(compound_notes)):
-                if i == (len(compound_notes) - 1):
-                    note_string += str(compound_notes[i])
-                else:
-                    note_string += str(compound_notes[i]) + " ~ "
-            return note_string
-
+        
         # Map pitch class
         note_string += pitch_class_mapping[self.pitch_class]
         # Map pitch modifier        
@@ -119,6 +92,9 @@ class Note:
         # Map duration
         note_string += duration_mapping[self.duration]
 
+        if self.connect:
+            note_string += " ~ "
+        
         return note_string
 
 class Rest(Note):
@@ -129,6 +105,7 @@ class Rest(Note):
         self.duration = duration
         self.compare_by = compare_by
         self.syllable = ""
+        self.connect = False
         
 class LilypondScore():
     def __init__(self, *args, **kwargs):
@@ -161,9 +138,11 @@ class LilypondScore():
     def add_voices(self, voices):
         self.voices.extend(voices)
     def output_ly(self):
-        filename = (self.composer + "_-_" + self.title + "_-_" + self.subtitle).replace(" ", "_") + ".ly"
-        if not os.path.exists("ly"):
-            os.makedirs("ly")
+        filename = (self.composer + "_-_" + self.title + "_-_" + self.subtitle).replace(" ", "_") + ".ly"    
+        if not os.path.exists(self.title):
+            os.makedirs(self.title)
+        if not os.path.exists(self.title + "/ly"):
+            os.makedirs(self.title + "/ly")
         score_file = open("ly/" + filename, 'w')
         score_file.write(str(self))
         score_file.close()
@@ -171,8 +150,10 @@ class LilypondScore():
         filename = (self.composer + "_-_" + self.title + "_-_" + self.subtitle).replace(" ", "_") + ".ly"
         self.output_ly()
         #actually output to file
-        if not os.path.exists("pdf"):
-            os.makedirs("pdf")
+        if not os.path.exists(self.title):
+            os.makedirs(self.title)
+        if not os.path.exists(self.title + "/pdf"):
+            os.makedirs(self.title + "/pdf")
         os.system("lilypond --output=pdf ly/" + filename)
 
 class LilypondVoice():
@@ -198,37 +179,84 @@ class LilypondVoice():
         current_bar_remainder = self.bar_size
         bars = " "
         lyrics_bars = " "
-        for note in self.notes:
+        note_pointer = 0
+        while note_pointer < len(self.notes):
+            note = self.notes[note_pointer]
+            # split nodes with odd duration and replace the original note
+            if note.duration not in all_duration_values:
+                print("Found note with odd value")
+                original_note_pointer = note_pointer
+                compound_notes = []
+                note_to_split = copy.deepcopy(note)            
+                while (note_to_split.duration > 0):
+           
+                    print("NOTE_TO_SPLIT: " + str(note_to_split.duration))
+                    largest_fitting_duration = 0
+                    # find nearest fitting note
+                    for i in range(0, len(unmodified_duration_values)):
+                        margin = unmodified_duration_values[i] - note_to_split.duration
+                        if margin <= 0:
+                            # now we should have the nearest margin
+                            largest_fitting_duration = unmodified_duration_values[i]
+                            print("FOUND: " + str(largest_fitting_duration))
+                            break
+                    compound_note = copy.deepcopy(note_to_split)
+                    compound_note.duration = largest_fitting_duration
+  
+                    note_to_split.duration -= largest_fitting_duration
+                    # bind to next note (except last, of course)
+                    
+                    #print(str(compound_note))
+                    compound_notes.append(compound_note)
+                print("FINISH splitting odd note")
+                # post-process compound notes
+                for j in range(0, len(compound_notes)):
+                    if j != 0:
+                        # remove syllable from compound notes
+                        compound_notes[j].syllable = ""
+                    if j < len(compound_notes) - 1:
+                        if compound_notes[j].pitch_class != REST:
+                            compound_notes[j].connect = True
+                # insert splitted notes into note list
+                for c_note in compound_notes:
+                    self.notes.insert(note_pointer, c_note)
+                    note_pointer += 1
+                self.notes.pop(note_pointer)
+                note_pointer = original_note_pointer
+                continue
             # calculate actual note duration
-            # print("CURRENT STATE: {0} : {1}".format(current_bar_remainder, note.duration))
+            #print("CURRENT STATE: {0} : {1}".format(current_bar_remainder, note.duration))
             if current_bar_remainder > note.duration:
+                # print("SIMPLE ADD")
                 bars += str(note) + " "
                 lyrics_bars += note.syllable + " "
                 current_bar_remainder = current_bar_remainder - note.duration
             elif current_bar_remainder == note.duration:
+                print("SIMPLE BAR SPLIT " + str(bar_count))
                 bars += str(note) + " | %" + " " + str(bar_count) + "\n"
                 lyrics_bars += note.syllable + " | %" + " " + str(bar_count) + "\n"
                 current_bar_remainder = self.bar_size
                 bar_count += 1
             else:
-                # split note to two bars with binding ... we need two copies, as we don't want to alter the orignal data
+                print("COMPLEX BAR SPLIT " + str(bar_count))
+                # split note to two bars with binding, remove orignial note 
                 split_note = copy.deepcopy(note)
                 original_note = copy.deepcopy(note)
                 split_note.duration = split_note.duration - current_bar_remainder
                 original_note.duration = current_bar_remainder
-                #print("SPLT NOTE: {0} : {1}".format(note.duration, split_note.duration))
-
-                if(original_note.pitch_class == REST):
-                    bars += str(original_note) + " | % " + " " + str(bar_count) + "\n"
-                else:
-                    bars += str(original_note) + " ~ | % " + " " + str(bar_count) + "\n"
-
-                bars += "% SPLIT POINT\n"
-                bars += str(split_note) + " "
-                lyrics_bars += note.syllable + " | %" + " " + str(bar_count) + "\n"
-                #lyrics_bars += "% SPLIT POINT\n"
-                current_bar_remainder = self.bar_size - split_note.duration
-                bar_count += 1
+                print("NOTE: " + str(original_note.duration))
+                print("SPLIT NOTE: " + str(split_note.duration))
+                
+                if original_note.pitch_class != REST:
+                    original_note.connect = True
+                split_note.syllable=""
+                self.notes.insert(note_pointer + 1, split_note)
+                self.notes.insert(note_pointer + 1, original_note)
+                
+                self.notes.pop(note_pointer)
+                continue
+            # increment note pointer
+            note_pointer += 1
         inner_voice_string = lilypond_inner_voice_template.format(self.short_name, self.clef,int(self.time_signature[0]), int(Decimal("1.0") / self.time_signature[1]), bars)
         # assemble lyrics templates
         inner_lyrics_string = " "
@@ -239,7 +267,10 @@ class LilypondVoice():
 
 # some utilities
 class LilypondTools():
-    # in case the voices are of different length, pad the shorter ones until the match the longer ones.
+    # transform the comparison mode
+    def set_comparison_type(self, compare_by, notes):
+         return list(map(lambda x : Note(x.pitch_class, x.pitch_modifier, x.octave, x.duration, x.syllable, compare_by = compare_by), notes))
+    #incase the voices are of different length, pad the shorter ones until they match the longer ones.
     def match_end(self, voices):
         # find longest voice
         longest_voice = voices[0]
@@ -274,10 +305,10 @@ class LilypondTools():
     # if the voice end on some crude measure, pad it to the next full bar
     def flush_end_to_bar(self, voice):
         bar_rest = voice.total_duration % voice.bar_size
-        #print("TOTAL DUR: " + str(voice.total_duration))
-        #print("BAR SIZE: " + str(voice.bar_size))
-        #print("BAR REST:" + str(bar_rest))
-        #print("DIFFERENCE: " + str(voice.bar_size - bar_rest))
-        if bar_rest != Decimal("0.0"):
+        print("TOTAL DUR: " + str(voice.total_duration))
+        print("BAR SIZE: " + str(voice.bar_size))
+        print("BAR REST:" + str(bar_rest))
+        print("DIFFERENCE: " + str(voice.bar_size - bar_rest))
+        if bar_rest <= Decimal("0.0"):
            voice.add_note(Rest(voice.bar_size - bar_rest))
      
