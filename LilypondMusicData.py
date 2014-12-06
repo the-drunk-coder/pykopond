@@ -139,22 +139,24 @@ class LilypondScore():
         self.voices.extend(voices)
     def output_ly(self):
         filename = (self.composer + "_-_" + self.title + "_-_" + self.subtitle).replace(" ", "_") + ".ly"    
-        if not os.path.exists(self.title):
-            os.makedirs(self.title)
-        if not os.path.exists(self.title + "/ly"):
-            os.makedirs(self.title + "/ly")
-        score_file = open("ly/" + filename, 'w')
+        esc_title = self.title.replace(" ", "_")
+        if not os.path.exists(esc_title):
+            os.makedirs(esc_title)
+        if not os.path.exists(esc_title + "/ly"):
+            os.makedirs(esc_title + "/ly")
+        score_file = open(esc_title + "/ly/" + filename, 'w')
         score_file.write(str(self))
         score_file.close()
     def output_pdf(self):
-        filename = (self.composer + "_-_" + self.title + "_-_" + self.subtitle).replace(" ", "_") + ".ly"
         self.output_ly()
         #actually output to file
-        if not os.path.exists(self.title):
-            os.makedirs(self.title)
-        if not os.path.exists(self.title + "/pdf"):
-            os.makedirs(self.title + "/pdf")
-        os.system("lilypond --output=pdf ly/" + filename)
+        esc_title = self.title.replace(" ", "_")
+        if not os.path.exists(esc_title):
+            os.makedirs(esc_title)
+        if not os.path.exists(esc_title + "/pdf"):
+            os.makedirs(esc_title + "/pdf")
+        filename = (self.composer + "_-_" + self.title + "_-_" + self.subtitle).replace(" ", "_") + ".ly"
+        os.system("lilypond --output=" + esc_title + "/pdf " + esc_title + "/ly/" + filename)
 
 class LilypondVoice():
     def __init__(self, *args, **kwargs):
@@ -202,61 +204,58 @@ class LilypondVoice():
                             break
                     compound_note = copy.deepcopy(note_to_split)
                     compound_note.duration = largest_fitting_duration
-  
                     note_to_split.duration -= largest_fitting_duration
-                    # bind to next note (except last, of course)
-                    
-                    #print(str(compound_note))
                     compound_notes.append(compound_note)
-                print("FINISH splitting odd note")
+                #print("FINISH splitting odd note")
                 # post-process compound notes
                 for j in range(0, len(compound_notes)):
                     if j != 0:
                         # remove syllable from compound notes
                         compound_notes[j].syllable = ""
                     if j < len(compound_notes) - 1:
+                        # bind notes unless it's a rest
                         if compound_notes[j].pitch_class != REST:
                             compound_notes[j].connect = True
                 # insert splitted notes into note list
                 for c_note in compound_notes:
                     self.notes.insert(note_pointer, c_note)
                     note_pointer += 1
+                # remove original note, as it has been replaced
                 self.notes.pop(note_pointer)
                 note_pointer = original_note_pointer
                 continue
-            # calculate actual note duration
-            #print("CURRENT STATE: {0} : {1}".format(current_bar_remainder, note.duration))
+            # check if note fits bar, act accordingly (if it fits perfectly, start new bar, otherwise split note)
             if current_bar_remainder > note.duration:
                 # print("SIMPLE ADD")
                 bars += str(note) + " "
                 lyrics_bars += note.syllable + " "
                 current_bar_remainder = current_bar_remainder - note.duration
             elif current_bar_remainder == note.duration:
-                print("SIMPLE BAR SPLIT " + str(bar_count))
-                bars += str(note) + " | %" + " " + str(bar_count) + "\n"
-                lyrics_bars += note.syllable + " | %" + " " + str(bar_count) + "\n"
+                #print("SIMPLE BAR SPLIT " + str(bar_count))
+                bars += str(note) + " | % " + str(bar_count) + "\n"
+                lyrics_bars += note.syllable + " | % " + str(bar_count) + "\n"
                 current_bar_remainder = self.bar_size
                 bar_count += 1
             else:
-                print("COMPLEX BAR SPLIT " + str(bar_count))
+                #print("COMPLEX BAR SPLIT " + str(bar_count))
                 # split note to two bars with binding, remove orignial note 
                 split_note = copy.deepcopy(note)
                 original_note = copy.deepcopy(note)
                 split_note.duration = split_note.duration - current_bar_remainder
                 original_note.duration = current_bar_remainder
-                print("NOTE: " + str(original_note.duration))
-                print("SPLIT NOTE: " + str(split_note.duration))
-                
+                #print("NOTE: " + str(original_note.duration))
+                #print("SPLIT NOTE: " + str(split_note.duration))
                 if original_note.pitch_class != REST:
                     original_note.connect = True
                 split_note.syllable=""
                 self.notes.insert(note_pointer + 1, split_note)
                 self.notes.insert(note_pointer + 1, original_note)
-                
+                # remove original note, as it has been replaced
                 self.notes.pop(note_pointer)
                 continue
             # increment note pointer
             note_pointer += 1
+        #assemble voice template
         inner_voice_string = lilypond_inner_voice_template.format(self.short_name, self.clef,int(self.time_signature[0]), int(Decimal("1.0") / self.time_signature[1]), bars)
         # assemble lyrics templates
         inner_lyrics_string = " "
@@ -282,22 +281,16 @@ class LilypondTools():
         # remove longest voice from list (temporariliy)
         voices.remove(longest_voice)
         # match shorter voices to longer voice       
-        for voice in voices:
-            
+        for voice in voices:  
             self.flush_end_to_bar(voice)
-            
             # calculate empty bars to be filled
             voice_difference = (longest_voice.total_duration - voice.total_duration)
             empty_bars = voice_difference / voice.bar_size
-
             for i in range(0, int(empty_bars)):
                 voice.add_note(Rest(voice.bar_size))
-
             total_remainder =  voice_difference % voice.bar_size 
-
             if total_remainder != Decimal('0.0'):
                voice.add_note(Rest(total_remainder))
-            
         # finally, add voice to list of voices again, keeping the original order
         voices.insert(longest_voice_index, longest_voice)
     
@@ -305,10 +298,11 @@ class LilypondTools():
     # if the voice end on some crude measure, pad it to the next full bar
     def flush_end_to_bar(self, voice):
         bar_rest = voice.total_duration % voice.bar_size
+        print("VOICE: " + voice.full_name)
         print("TOTAL DUR: " + str(voice.total_duration))
         print("BAR SIZE: " + str(voice.bar_size))
         print("BAR REST:" + str(bar_rest))
         print("DIFFERENCE: " + str(voice.bar_size - bar_rest))
-        if bar_rest <= Decimal("0.0"):
+        if bar_rest > Decimal("0.0"):
            voice.add_note(Rest(voice.bar_size - bar_rest))
      
