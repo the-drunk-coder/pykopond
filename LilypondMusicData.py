@@ -104,6 +104,7 @@ class Rest(Note):
         
 class LilypondScore():
     def __init__(self, *args, **kwargs):
+        self.number = kwargs.get('number', "000")
         self.title = kwargs.get('title', "Title")
         self.dedication = kwargs.get('dedication', "")
         self.subtitle = kwargs.get('subtitle', "")
@@ -133,8 +134,8 @@ class LilypondScore():
     def add_voices(self, voices):
         self.voices.extend(voices)
     def output_ly(self):
-        filename = (self.composer + "_-_" + self.title + "_-_" + self.subtitle).replace(" ", "_") + ".ly"    
-        esc_title = self.title.replace(" ", "_")
+        filename = (self.number + "_" + self.title + "_" + self.subtitle).replace(" ", "_") + ".ly"    
+        esc_title = self.number + "_" + self.title.replace(" ", "_")
         if not os.path.exists(esc_title):
             os.makedirs(esc_title)
         if not os.path.exists(esc_title + "/ly"):
@@ -145,13 +146,13 @@ class LilypondScore():
     def output_pdf(self):
         self.output_ly()
         #actually output to file
-        esc_title = self.title.replace(" ", "_")
+        esc_title = self.number + "_" + self.title.replace(" ", "_")
         if not os.path.exists(esc_title):
             os.makedirs(esc_title)
         if not os.path.exists(esc_title + "/pdf"):
             os.makedirs(esc_title + "/pdf")
-        filename = (self.composer + "_-_" + self.title + "_-_" + self.subtitle).replace(" ", "_") + ".ly"
-        os.system("lilypond --output=" + esc_title + "/pdf " + esc_title + "/ly/" + filename)
+        filename = (self.number + "_" + self.title + "_" + self.subtitle).replace(" ", "_") + ".ly"
+        os.system("lilypond -V --output=" + esc_title + "/pdf " + esc_title + "/ly/" + filename)
 
 class LilypondVoice():
     def __init__(self, *args, **kwargs):
@@ -270,22 +271,11 @@ class LilypondTools():
         for voice_ptr in range(0,len(voices)):
             if (voices[voice_ptr]).total_duration > longest_voice.total_duration:
                 longest_voice = voices[voice_ptr]
-                longest_voice_index = voice_ptr
-        # remove longest voice from list (temporariliy)
-        voices.remove(longest_voice)
         # match shorter voices to longer voice       
         for voice in voices:  
-            self.flush_end_to_bar(voice)
-            # calculate empty bars to be filled
-            voice_difference = (longest_voice.total_duration - voice.total_duration)
-            empty_bars = voice_difference / voice.bar_size
-            for i in range(0, int(empty_bars)):
-                voice.add_note(Rest(voice.bar_size))
-            total_remainder =  voice_difference % voice.bar_size 
-            if total_remainder > Decimal('0.0'):
-               voice.add_note(Rest(total_remainder))
-        # finally, add voice to list of voices again, keeping the original order
-        voices.insert(longest_voice_index, longest_voice)
+            if voice != longest_voice:
+                voice_difference = (longest_voice.total_duration - voice.total_duration)
+                voice.add_note(Rest(voice_difference))
     # if the voice end on some crude measure, pad it to the next full bar
     def flush_end_to_bar(self, voice):
         bar_rest = voice.total_duration % voice.bar_size
@@ -296,4 +286,14 @@ class LilypondTools():
         print("DIFFERENCE: " + str(voice.bar_size - bar_rest))
         if bar_rest > Decimal("0.0"):
            voice.add_note(Rest(voice.bar_size - bar_rest))
-     
+    # calculate the duration of a sequence of notes
+    def calculate_duration(self, notes):
+        total_duration = Decimal('0.0')
+        if len(notes) == 0:
+            return total_duration
+        for note in notes:
+            total_duration += note.duration
+        return total_duration
+    # transpose one octave down
+    def octave_down(self, notes):
+        return list(map(lambda x : Note(x.pitch_class, x.pitch_modifier, x.octave - Decimal('1.0'), x.duration, x.syllable, compare_by = x.compare_by), notes))
