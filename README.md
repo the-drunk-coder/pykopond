@@ -16,3 +16,7 @@ be fairly simple to add them in the future ...
 
 n-lets are currently not (really) possible, as well. This might be a bit more of a
 challenge, not so much the calculation part, but the parsing part ...
+
+
+--
+Released under GPLv3 or later
