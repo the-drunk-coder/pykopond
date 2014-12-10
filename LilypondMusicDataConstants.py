@@ -1,5 +1,6 @@
 from decimal import *
 
+# seven digits behind the comma should be sufficient ... 
 getcontext().prec = 7
 
 # Pitch Classes

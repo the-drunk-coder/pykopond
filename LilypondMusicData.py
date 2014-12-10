@@ -35,10 +35,11 @@ class Note:
         self.duration = duration
         self.syllable = syllable
         self.compare_by = compare_by
+        # if true, the note will be bound to the next note
         self.connect = kwargs.get("connect", False)
-    # calculate actual pitch including all modifiers as a floating point number
+    # calculate actual pitch including all modifiers as a fixed point decimal number
     def actual_pitch(self):
-        # multiply octave by 8 to achieve enough distance between octaves
+        # multiply octave by 8 to achieve enough distance between octaves for calculation
         overall_pitch = (self.octave * Decimal('8.0'))+ (self.pitch_class + self.pitch_modifier)        
         return overall_pitch
     # note comparison functions
@@ -75,18 +76,18 @@ class Note:
                 raise NoteError("Can't compare length by pitch !")
             else:
                 return self.duration <= other.duration
-    # returns the note in it's lilypond representation
+    # returns the note in its lilypond representation
     def __str__(self):
         # assemble lilypond note string
         note_string = "";
-        # Map pitch class
+        # map pitch class
         note_string += pitch_class_mapping[self.pitch_class]
-        # Map pitch modifier        
+        # map pitch modifier        
         note_string += modifier_mapping[self.pitch_modifier]
-        # Map octave, unless it's a rest
+        # map octave, unless it's a rest
         if self.pitch_class != 0:
             note_string += octave_mapping[self.octave]
-        # Map duration
+        # map duration
         note_string += duration_mapping[self.duration]
         if self.connect:
             note_string += " ~ "        
@@ -133,6 +134,7 @@ class LilypondScore():
         self.voices.append(voice)
     def add_voices(self, voices):
         self.voices.extend(voices)
+    # generate the lilypond source file
     def output_ly(self):
         filename = (self.number + "_" + self.title + "_" + self.subtitle).replace(" ", "_") + ".ly"    
         esc_title = self.number + "_" + self.title.replace(" ", "_")
@@ -143,9 +145,10 @@ class LilypondScore():
         score_file = open(esc_title + "/ly/" + filename, 'w')
         score_file.write(str(self))
         score_file.close()
+    # generate pdf file
     def output_pdf(self):
         self.output_ly()
-        #actually output to file
+        # actually output to file
         esc_title = self.number + "_" + self.title.replace(" ", "_")
         if not os.path.exists(esc_title):
             os.makedirs(esc_title)
@@ -161,11 +164,12 @@ class LilypondVoice():
         self.clef = kwargs.get('clef', "treble")
         self.time_signature = kwargs.get('time_signature', [Decimal('4.0'),q])
         self.notes = []
+        # flagging a voice whether it contains lyrics or not ... should help the parsing lateron
         self.contains_lyrics = kwargs.get('contains_lyrics', False)
         self.total_duration = 0
         self.bar_size = self.time_signature[0] * self.time_signature[1]
-        # this one should it make easier to parse out the lyrics afterwards ...
     def add_note(self, note):
+        # actualize total duration of the voice
         self.total_duration += note.duration
         self.notes.append(note)
     def add_notes(self, notes):
@@ -180,14 +184,13 @@ class LilypondVoice():
         note_pointer = 0
         while note_pointer < len(self.notes):
             note = self.notes[note_pointer]
-            # split nodes with odd duration and replace the original note
+            # split notes with odd durations and replace the original note
             if note.duration not in all_duration_values:
                 print("Found note with odd value")
                 original_note_pointer = note_pointer
                 compound_notes = []
                 note_to_split = copy.deepcopy(note)            
                 while (note_to_split.duration > 0):
-                    #print("NOTE_TO_SPLIT: " + str(note_to_split.duration))
                     largest_fitting_duration = 0
                     # find nearest fitting note
                     for i in range(0, len(unmodified_duration_values)):
@@ -195,14 +198,13 @@ class LilypondVoice():
                         if margin <= 0:
                             # now we should have the nearest margin
                             largest_fitting_duration = unmodified_duration_values[i]
-                            print("FOUND: " + str(largest_fitting_duration))
+                            #print("FOUND: " + str(largest_fitting_duration))
                             break
                     compound_note = copy.deepcopy(note_to_split)
                     compound_note.duration = largest_fitting_duration
                     note_to_split.duration -= largest_fitting_duration
                     compound_notes.append(compound_note)
-                #print("FINISH splitting odd note")
-                # post-process compound notes
+                # post-process compound notes (notes that have been splitted, that is)
                 for j in range(0, len(compound_notes)):
                     if j != 0:
                         # remove syllable from compound notes
@@ -220,26 +222,21 @@ class LilypondVoice():
                 note_pointer = original_note_pointer
                 continue
             # check if note fits bar, act accordingly (if it fits perfectly, start new bar, otherwise split note)
-            if current_bar_remainder > note.duration:
-                # print("SIMPLE ADD")
+            if current_bar_remainder > note.duration:                
                 bars += str(note) + " "
                 lyrics_bars += note.syllable + " "
                 current_bar_remainder = current_bar_remainder - note.duration
             elif current_bar_remainder == note.duration:
-                #print("SIMPLE BAR SPLIT " + str(bar_count))
                 bars += str(note) + " | % " + str(bar_count) + "\n"
                 lyrics_bars += note.syllable + " | % " + str(bar_count) + "\n"
                 current_bar_remainder = self.bar_size
                 bar_count += 1
             else:
-                #print("COMPLEX BAR SPLIT " + str(bar_count))
                 # split note to two bars with binding, remove orignial note 
                 split_note = copy.deepcopy(note)
                 original_note = copy.deepcopy(note)
                 split_note.duration = split_note.duration - current_bar_remainder
                 original_note.duration = current_bar_remainder
-                #print("NOTE: " + str(original_note.duration))
-                #print("SPLIT NOTE: " + str(split_note.duration))
                 if original_note.pitch_class != REST:
                     original_note.connect = True
                 split_note.syllable=""
@@ -263,7 +260,7 @@ class LilypondTools():
     # transform the comparison mode
     def set_comparison_type(self, compare_by, notes):
          return list(map(lambda x : Note(x.pitch_class, x.pitch_modifier, x.octave, x.duration, x.syllable, compare_by = compare_by), notes))
-    #incase the voices are of different length, pad the shorter ones until they match the longer ones.
+    # in case the voices are of different length, pad the shorter ones until they match the longer ones.
     def match_end(self, voices):
         # find longest voice
         longest_voice = voices[0]
@@ -276,14 +273,9 @@ class LilypondTools():
             if voice != longest_voice:
                 voice_difference = (longest_voice.total_duration - voice.total_duration)
                 voice.add_note(Rest(voice_difference))
-    # if the voice end on some crude measure, pad it to the next full bar
+    # if the voice ends on some crude measure, pad it to the next full bar
     def flush_end_to_bar(self, voice):
         bar_rest = voice.total_duration % voice.bar_size
-        print("VOICE: " + voice.full_name)
-        print("TOTAL DUR: " + str(voice.total_duration))
-        print("BAR SIZE: " + str(voice.bar_size))
-        print("BAR REST:" + str(bar_rest))
-        print("DIFFERENCE: " + str(voice.bar_size - bar_rest))
         if bar_rest > Decimal("0.0"):
            voice.add_note(Rest(voice.bar_size - bar_rest))
     # calculate the duration of a sequence of notes
