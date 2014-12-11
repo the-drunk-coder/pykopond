@@ -4,7 +4,7 @@ pykopond
 Orderable music data types for python, designed to work with lilypond.
 
 This is my attempt at creating a flexible and comparable datatype
-to describe and work with music.The main focus is providing a python environment
+to describe and work with music. The main focus is providing a python environment
 for algorithmic composition.
 
 Forthermore, this library contains tools to parse this datatype directly to lilypond.
