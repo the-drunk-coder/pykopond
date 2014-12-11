@@ -12,7 +12,7 @@
 # There's currently no support to represent accentuation, dynamics etc., though it should
 # be fairly simple to add them in the future ...
 #
-# n-lets are currently not (really) possible, as well. This might be a bit more of a
+# tuplets are currently not (really) possible, as well. This might be a bit more of a
 # challenge, not so much the calculation part, but the parsing part ...
 
 import copy, os, subprocess
@@ -105,8 +105,10 @@ class Rest(Note):
         
 class LilypondScore():
     def __init__(self, *args, **kwargs):
-        self.number = kwargs.get('number', "000")
-        self.title = kwargs.get('title', "Title")
+        self.series_number = kwargs.get('series_number', "")
+        self.piece_number = kwargs.get('piece_number', "")
+        self.series_title = kwargs.get('series_title', "")
+        self.piece_title = kwargs.get('piece_title', "defaul_title")
         self.dedication = kwargs.get('dedication', "")
         self.subtitle = kwargs.get('subtitle', "")
         self.subsubtitle = kwargs.get('subsubtitle', "")
@@ -120,7 +122,7 @@ class LilypondScore():
         lilypond_string += "\\version \"{0}\"\n".format(self.version)
         for voice in self.voices:
             lilypond_string += str(voice) + "\n\n"
-        lilypond_string += lilypond_header_template.format(self.title, self.dedication, self.subtitle, self.subsubtitle, self.meter, self.composer, self.copyright)
+        lilypond_string += lilypond_header_template.format(self.series_title + " " + self.piece_title, self.dedication, self.subtitle, self.subsubtitle, self.meter, self.composer, self.copyright)
         voices_string = ""
         for voice in self.voices:
             lyrics = ""
@@ -134,29 +136,52 @@ class LilypondScore():
         self.voices.append(voice)
     def add_voices(self, voices):
         self.voices.extend(voices)
+    # assemble base folder
+    def assemble_foldername(self):
+        foldername = ""
+        if self.series_number != "":
+            foldername += self.series_number + "_"
+        # if it is a series, generate structure
+        if self.series_title != "":
+            foldername += self.series_title
+            if self.piece_number != "":
+                foldername += "/" + self.piece_number
+        # otherwise generate simple folder
+        else:
+            foldername += self.piece_title
+        return foldername.replace(" ", "_")
+    # assemble filename
+    def assemble_filename(self):
+        filename = ""
+        if self.series_number != "":
+            filename += self.series_number + "_"
+        if self.piece_number != "":
+            filename += self.piece_number + "_"
+        if self.series_title != "":
+            filename += self.series_title + "_"
+        filename += self.piece_title
+        if self.subtitle != "":
+            filename += "_" + self.subtitle
+        return filename.replace(" ", "_")
     # generate the lilypond source file
     def output_ly(self):
-        filename = (self.number + "_" + self.title + "_" + self.subtitle).replace(" ", "_") + ".ly"    
-        esc_title = self.number + "_" + self.title.replace(" ", "_")
-        if not os.path.exists(esc_title):
-            os.makedirs(esc_title)
-        if not os.path.exists(esc_title + "/ly"):
-            os.makedirs(esc_title + "/ly")
-        score_file = open(esc_title + "/ly/" + filename, 'w')
+        folder = self.assemble_foldername()
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+        if not os.path.exists(folder + "/ly"):
+            os.makedirs(folder + "/ly")
+        score_file = open(folder + "/ly/" + self.assemble_filename() + ".ly", 'w')
         score_file.write(str(self))
         score_file.close()
     # generate pdf file
     def output_pdf(self):
         self.output_ly()
         # actually output to file
-        esc_title = self.number + "_" + self.title.replace(" ", "_")
-        if not os.path.exists(esc_title):
-            os.makedirs(esc_title)
-        if not os.path.exists(esc_title + "/pdf"):
-            os.makedirs(esc_title + "/pdf")
-        filename = (self.number + "_" + self.title + "_" + self.subtitle).replace(" ", "_") + ".ly"
-        os.system("lilypond -V --output=" + esc_title + "/pdf " + esc_title + "/ly/" + filename)
-
+        folder = self.assemble_foldername()
+        if not os.path.exists(folder + "/pdf"):
+            os.makedirs(folder + "/pdf")
+        filename = self.assemble_filename() + ".ly"
+        os.system("lilypond -V --output=" + folder + "/pdf " + folder + "/ly/" + filename)
 class LilypondVoice():
     def __init__(self, *args, **kwargs):
         self.full_name = kwargs.get('full_name', "some voice name")
