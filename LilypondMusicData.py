@@ -27,8 +27,9 @@ class NoteError(Exception):
     def __str__(self):
         return repr(self.message)
 
+# duration default is needed if note is within chord
 class Note:
-    def __init__(self, pitch_class, pitch_modifier, octave, duration, syllable="", compare_by = "pitch", **kwargs):
+    def __init__(self, pitch_class, pitch_modifier, octave, duration=Decimal("0.25"), syllable="", compare_by = "pitch", **kwargs):
         self.pitch_class = pitch_class
         self.pitch_modifier = pitch_modifier
         self.octave = Decimal(str(octave))
@@ -37,6 +38,7 @@ class Note:
         self.compare_by = compare_by
         # if true, the note will be bound to the next note
         self.connect = kwargs.get("connect", False)
+        self.in_chord = False
     # calculate actual pitch including all modifiers as a fixed point decimal number
     def actual_pitch(self):
         # multiply octave by 8 to achieve enough distance between octaves for calculation
@@ -87,8 +89,9 @@ class Note:
         # map octave, unless it's a rest
         if self.pitch_class != 0:
             note_string += octave_mapping[self.octave]
-        # map duration
-        note_string += duration_mapping[self.duration]
+        if not self.in_chord:
+            # map duration
+            note_string += duration_mapping[self.duration]
         if self.connect:
             note_string += " ~ "        
         return note_string
@@ -102,13 +105,34 @@ class Rest(Note):
         self.compare_by = compare_by
         self.syllable = ""
         self.connect = False
+        self.in_chord = False
         
+# comparing chords ?? consonance ? dissonance ? distance measures ? 
+# chord class ... notes only need no duration in that case, as the duration is set for the whole chord
+class Chord:
+    def __init__(self, notes, duration, **kwargs):
+        self.notes = notes
+        self.duration = duration
+        self.connect = kwargs.get("connect", False)
+    def __str__(self):
+        chord = "<"
+        for note in self.notes:
+            note.in_chord = True
+            # just to be sure
+            note.connect = False
+            chord += str(note) + " "
+        chord += ">"
+        chord += duration_mapping[self.duration]
+        if self.connect:
+            chord += " ~ "        
+        return chord
+
 class LilypondScore():
     def __init__(self, *args, **kwargs):
         self.series_number = kwargs.get('series_number', "")
         self.piece_number = kwargs.get('piece_number', "")
         self.series_title = kwargs.get('series_title', "")
-        self.piece_title = kwargs.get('piece_title', "defaul_title")
+        self.piece_title = kwargs.get('piece_title', "default_title")
         self.dedication = kwargs.get('dedication', "")
         self.subtitle = kwargs.get('subtitle', "")
         self.subsubtitle = kwargs.get('subsubtitle', "")
@@ -236,8 +260,8 @@ class LilypondVoice():
                         # remove syllable from compound notes
                         compound_notes[j].syllable = ""
                     if j < len(compound_notes) - 1:
-                        # bind notes unless it's a rest
-                        if compound_notes[j].pitch_class != REST:
+                        # bind notes unless it's a rest or a chord
+                        if not hasattr(compound_notes[j], 'pitch_class') or compound_notes[j].pitch_class != REST:
                             compound_notes[j].connect = True
                 # insert splitted notes into note list
                 for c_note in compound_notes:
@@ -250,11 +274,15 @@ class LilypondVoice():
             # check if note fits bar, act accordingly (if it fits perfectly, start new bar, otherwise split note)
             if current_bar_remainder > note.duration:                
                 bars += str(note) + " "
-                lyrics_bars += note.syllable + " "
+                # chords have no syllable
+                if hasattr(note, 'syllable'):
+                    lyrics_bars += note.syllable + " "
                 current_bar_remainder = current_bar_remainder - note.duration
             elif current_bar_remainder == note.duration:
                 bars += str(note) + " | % " + str(bar_count) + "\n"
-                lyrics_bars += note.syllable + " | % " + str(bar_count) + "\n"
+                # chords have no syllable
+                if hasattr(note, 'syllable'):
+                    lyrics_bars += note.syllable + " | % " + str(bar_count) + "\n"
                 current_bar_remainder = self.bar_size
                 bar_count += 1
             else:
@@ -263,9 +291,11 @@ class LilypondVoice():
                 original_note = copy.deepcopy(note)
                 split_note.duration = split_note.duration - current_bar_remainder
                 original_note.duration = current_bar_remainder
-                if original_note.pitch_class != REST:
+                # chords have no pitch class or syllables
+                if not hasattr(original_note, 'pitch_class') or original_note.pitch_class != REST:
                     original_note.connect = True
-                split_note.syllable=""
+                if hasattr(original_note, 'syllable'):    
+                    split_note.syllable=""
                 self.notes.insert(note_pointer + 1, split_note)
                 self.notes.insert(note_pointer + 1, original_note)
                 # remove original note, as it has been replaced
@@ -274,7 +304,7 @@ class LilypondVoice():
             # increment note pointer
             note_pointer += 1
         #assemble voice template
-        inner_voice_string = lilypond_inner_voice_template.format(self.short_name, self.clef,int(self.time_signature[0]), int(Decimal("1.0") / self.time_signature[1]), bars)
+        inner_voice_string = lilypond_inner_voice_template.format(self.short_name, self.clef, int(self.time_signature[0]), int(Decimal("1.0") / self.time_signature[1]), bars)
         # assemble lyrics templates
         inner_lyrics_string = " "
         if self.contains_lyrics:
