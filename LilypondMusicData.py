@@ -182,6 +182,7 @@ class LilypondScore():
             os.makedirs(folder + "/pdf")
         filename = self.assemble_filename() + ".ly"
         os.system("lilypond -V --output=" + folder + "/pdf " + folder + "/ly/" + filename)
+
 class LilypondVoice():
     def __init__(self, *args, **kwargs):
         self.full_name = kwargs.get('full_name', "some voice name")
