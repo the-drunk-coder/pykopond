@@ -1,53 +1,48 @@
-from decimal import *
-
-# seven digits behind the comma should be sufficient ... 
-getcontext().prec = 7
-
 # Pitch Classes
-REST = Decimal("0.0")
-C = Decimal("1.0")
-D = Decimal("2.0")
-E = Decimal("3.0")
-F = Decimal("4.5")
-G = Decimal("5.5")
-A = Decimal("6.5")
-B = Decimal("7.5")
+REST = 0
+C = 100
+D = 200
+E = 300
+F = 450
+G = 550
+A = 650
+B = 750
 
 # Modifiers for equal tempered pitch, modifiy as you wish for alternate tunings
-none = Decimal("0")
-sharp = Decimal("0.5")
-flat = Decimal("-0.5")
-double_sharp = Decimal("1.0")
-double_flat = Decimal("-1.0")
-half_sharp = Decimal("0.25")
-half_flat = Decimal("-0.25")
-sharp_half_sharp = Decimal("0.75")
-flat_half_flat = Decimal("-0.75")
+none = 0
+sharp = 50
+flat = -50
+double_sharp = 100
+double_flat = -100
+half_sharp = 25
+half_flat = -25
+sharp_half_sharp = 75
+flat_half_flat = -75
 
 # Durations d = dotted, dd = double_dotted
-longa = Decimal("4.0")
+longa = 40000000
 
-breve = Decimal("2.0")
+breve = 20000000
 
-dd_w = Decimal("1.75")
-d_w = Decimal("1.5")
-w = Decimal("1.0")
+dd_w  = 17500000
+d_w   = 15000000  
+w     = 10000000
 
-dd_h = Decimal("0.875")
-d_h = Decimal("0.75")
-h = Decimal("0.5")
+dd_h  = 8750000
+d_h   = 7500000
+h     = 5000000
 
-dd_q = Decimal("0.4375")
-d_q = Decimal("0.375")
-q = Decimal("0.25")
+dd_q  = 4375000
+d_q   = 3750000
+q     = 2500000
 
-dd_e = Decimal("0.21875")
-d_e = Decimal("0.1875")
-e = Decimal("0.125")
+dd_e  = 2187500
+d_e   = 1875000
+e     = 1250000
 
 # currently no dots supported for those small notes ...
-st = Decimal("0.0625")
-ts = Decimal("0.03125")
+st    = 625000
+ts    = 312500
 
 # needed to calculate odd duration values, like quarter + sixteenth etc ...
 modified_duration_values = [dd_w, d_w, dd_h, d_h, dd_q, d_q, dd_e, d_e]

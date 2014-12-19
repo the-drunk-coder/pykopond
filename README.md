@@ -10,7 +10,8 @@ for algorithmic composition.
 Forthermore, this library contains tools to parse this datatype directly to lilypond.
 
 The approach for the datatype is in some parts borrowed from the one you can find in HASKORE.
-It's based on fixed-point arithmetic, using python's 'Decimal' datatype.
+It has origninally been based on fixed-point decimal arithmethic (using python's "Decimal" type),
+but has been switched to simple integer artithmetic in the meantime, to improve performance.
 
 So far, i only implemented what i needed for some compositions, so there are still some
 things to do to make this a complete environment:

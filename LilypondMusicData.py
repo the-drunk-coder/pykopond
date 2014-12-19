@@ -14,12 +14,10 @@
 #
 # tuplets are currently not (really) possible, as well. This might be a bit more of a
 # challenge, not so much the calculation part, but the parsing part ...
-
 import copy, os, subprocess
 from LilypondMusicDataConstants import *
 from LilypondMusicDataTemplates import *
 from LilypondMusicDataMappings import *
-from decimal import *
 
 class NoteError(Exception):
     def __init__(self, message):
@@ -29,10 +27,10 @@ class NoteError(Exception):
 
 # duration default is needed if note is within chord
 class Note:
-    def __init__(self, pitch_class, pitch_modifier, octave, duration=Decimal("0.25"), syllable="", compare_by = "pitch", **kwargs):
+    def __init__(self, pitch_class, pitch_modifier, octave, duration=q, syllable="", compare_by = "pitch", **kwargs):
         self.pitch_class = pitch_class
         self.pitch_modifier = pitch_modifier
-        self.octave = Decimal(str(octave))
+        self.octave = octave
         self.duration = duration
         self.syllable = syllable
         self.compare_by = compare_by
@@ -42,7 +40,7 @@ class Note:
     # calculate actual pitch including all modifiers as a fixed point decimal number
     def actual_pitch(self):
         # multiply octave by 8 to achieve enough distance between octaves for calculation
-        overall_pitch = (self.octave * Decimal('8.0'))+ (self.pitch_class + self.pitch_modifier)        
+        overall_pitch = (self.octave * 800) + (self.pitch_class + self.pitch_modifier)        
         return overall_pitch
     # note comparison functions
     def __lt__(self, other):
@@ -100,7 +98,7 @@ class Rest(Note):
     def __init__(self, duration, compare_by = "pitch"):
         self.pitch_class = REST
         self.pitch_modifier = none
-        self.octave = Decimal("0.0")
+        self.octave = 0
         self.duration = duration
         self.compare_by = compare_by
         self.syllable = ""
@@ -212,7 +210,7 @@ class LilypondVoice():
         self.full_name = kwargs.get('full_name', "some voice name")
         self.short_name = kwargs.get('short_name', "svn")
         self.clef = kwargs.get('clef', "treble")
-        self.time_signature = kwargs.get('time_signature', [Decimal('4.0'),q])
+        self.time_signature = kwargs.get('time_signature', [4,q])
         self.notes = []
         # flagging a voice whether it contains lyrics or not ... should help the parsing lateron
         self.contains_lyrics = kwargs.get('contains_lyrics', False)
@@ -304,11 +302,11 @@ class LilypondVoice():
             # increment note pointer
             note_pointer += 1
         #assemble voice template
-        inner_voice_string = lilypond_inner_voice_template.format(self.short_name, self.clef, int(self.time_signature[0]), int(Decimal("1.0") / self.time_signature[1]), bars)
+        inner_voice_string = lilypond_inner_voice_template.format(self.short_name, self.clef, int(self.time_signature[0]), int(w / self.time_signature[1]), bars)
         # assemble lyrics templates
         inner_lyrics_string = " "
         if self.contains_lyrics:
-            inner_lyrics_string = lilypond_inner_lyrics_template.format(self.short_name, self.clef, int(self.time_signature[0]), int(Decimal("1.0") / self.time_signature[1]), lyrics_bars)
+            inner_lyrics_string = lilypond_inner_lyrics_template.format(self.short_name, self.clef, int(self.time_signature[0]), int(w / self.time_signature[1]), lyrics_bars)
         return inner_voice_string + "\n\n" + inner_lyrics_string
 
 # some utilities
@@ -332,11 +330,11 @@ class LilypondTools():
     # if the voice ends on some crude measure, pad it to the next full bar
     def flush_end_to_bar(self, voice):
         bar_rest = voice.total_duration % voice.bar_size
-        if bar_rest > Decimal("0.0"):
+        if bar_rest > 0:
            voice.add_note(Rest(voice.bar_size - bar_rest))
     # calculate the duration of a sequence of notes
     def calculate_duration(self, notes):
-        total_duration = Decimal('0.0')
+        total_duration = 0
         if len(notes) == 0:
             return total_duration
         for note in notes:
@@ -344,4 +342,4 @@ class LilypondTools():
         return total_duration
     # transpose one octave down
     def octave_down(self, notes):
-        return list(map(lambda x : Note(x.pitch_class, x.pitch_modifier, x.octave - Decimal('1.0'), x.duration, x.syllable, compare_by = x.compare_by), notes))
+        return list(map(lambda x : Note(x.pitch_class, x.pitch_modifier, x.octave - 1, x.duration, x.syllable, compare_by = x.compare_by), notes))
