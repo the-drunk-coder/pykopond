@@ -220,10 +220,18 @@ class LilypondVoice():
         # actualize total duration of the voice
         self.total_duration += note.duration
         self.notes.append(note)
+    def prepend_note(self, note):
+        # actualize total duration of the voice
+        self.total_duration += note.duration
+        self.notes.insert(0, note)
     def add_notes(self, notes):
         # easier to calculate total duration that way
         for note in notes:
             self.add_note(note)
+    def prepend_notes(self, notes):
+        # easier to calculate total duration that way
+        for note in list(reverse(notes)):
+            self.add_note_front(note)
     def __str__(self):
         bar_count = 1
         current_bar_remainder = self.bar_size
@@ -327,6 +335,19 @@ class LilypondTools():
             if voice != longest_voice:
                 voice_difference = (longest_voice.total_duration - voice.total_duration)
                 voice.add_note(Rest(voice_difference))
+    # match end by putting the padding to the front
+    def match_front(self, voices):
+        # find longest voice
+        longest_voice = voices[0]
+        longest_voice_index = 0
+        for voice_ptr in range(0,len(voices)):
+            if (voices[voice_ptr]).total_duration > longest_voice.total_duration:
+                longest_voice = voices[voice_ptr]
+        # match shorter voices to longer voice       
+        for voice in voices:  
+            if voice != longest_voice:
+                voice_difference = (longest_voice.total_duration - voice.total_duration)
+                voice.prepend_note(Rest(voice_difference))
     # if the voice ends on some crude measure, pad it to the next full bar
     def flush_end_to_bar(self, voice):
         bar_rest = voice.total_duration % voice.bar_size
